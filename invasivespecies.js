@@ -78,8 +78,9 @@ async function runInvasiveAnalysis() {
 }
 
 // --- EVENT LISTENERS ---
-document.getElementById('search-btn').addEventListener('click', runInvasiveAnalysis);
 
 document.getElementById('user-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') runInvasiveAnalysis();
+    if (e.key === 'Enter') {
+        runInvasiveAnalysis();
+    }
 });

@@ -79,3 +79,9 @@ document.getElementById('product-input').addEventListener('keypress', (e) => {
 });
 
 document.getElementById('reset-button').addEventListener('click', resetUI);
+document.getElementById('product-input').addEventListener('keypress', (e) => {
+    if (e.key === "Enter") { 
+        const val = e.target.value; 
+        if(val) runScan(val); 
+    }
+});
