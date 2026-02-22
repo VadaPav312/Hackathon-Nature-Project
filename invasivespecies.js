@@ -8,6 +8,7 @@ const markerLayer = L.layerGroup().addTo(map);
 
 // --- ANALYSIS LOGIC ---
 async function runInvasiveAnalysis() {
+    console.log("DEBUG: Function 'runInvasiveAnalysis' has started.");
     const queryInput = document.getElementById('user-input');
     const query = queryInput.value.trim();
     if (!query) return;
