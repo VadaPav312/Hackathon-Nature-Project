@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invasive Species Explorer | Red Alert</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Michroma&display=swap');
+
+        :root {
+            --bg-dark: #0a0f0d;
+            --panel-dark: #121815;
+            --accent-red: #ff4d4d; /* Main Theme Color */
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Michroma', sans-serif;
+            overflow: hidden; 
+            background: var(--bg-dark);
+            color: #ffffff;
+        }
+
+        .layout-container { display: flex; height: 100vh; width: 100vw; }
+
+        .ai-panel {
+            flex: 1; min-width: 400px; max-width: 450px;
+            background: var(--panel-dark);
+            display: flex; flex-direction: column;
+            /* RED SIDE TAPE */
+            border-right: 4px solid var(--accent-red);
+            padding: 25px;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-home {
+            text-decoration: none; color: var(--accent-red);
+            font-weight: bold; font-size: 0.7rem;
+            border: 2px solid var(--accent-red); padding: 8px 15px;
+            border-radius: 20px; transition: 0.3s;
+        }
+
+        .back-home:hover { background: var(--accent-red); color: #000; }
+
+        .chat-header {
+            background: rgba(255, 77, 77, 0.1); 
+            color: white;
+            padding: 10px 20px; border-radius: 10px;
+            text-align: center; flex-grow: 1;
+            margin-left: 10px; font-size: 0.85rem;
+            border: 1px solid rgba(255, 77, 77, 0.2);
+        }
+
+        #response-area {
+            flex-grow: 1; background: var(--glass);
+            border-radius: 12px; padding: 20px;
+            overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
+            line-height: 1.6; color: #e0e0e0;
+            font-family: sans-serif;
+        }
+
+        .input-group { 
+            margin-top: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            align-items: center; 
+        }
+        
+        input[type="text"] {
+            width: 90%;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 25px; 
+            border: 1px solid var(--accent-red); 
+            outline: none;
+            color: white;
+            font-family: 'Michroma', sans-serif;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        button {
+            padding: 12px 30px; 
+            background: transparent; 
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red); 
+            border-radius: 25px; 
+            cursor: pointer;
+            transition: 0.4s; 
+            font-weight: bold; 
+            font-family: 'Michroma', sans-serif;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        button:hover { 
+            background: var(--accent-red); 
+            color: #000; 
+            box-shadow: 0 0 20px rgba(255, 77, 77, 0.3);
+        }
+
+        #map { flex: 2; height: 100%; background: #0b0e11; }
+        
+        .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(170deg) saturate(0.3) brightness(0.7);
+        }
+
+        .section-title { 
+            font-family: 'Michroma', sans-serif; 
+            font-size: 0.7rem; 
+            color: var(--accent-red); 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            padding-bottom: 8px; 
+            margin: 20px 0 10px 0; 
+            display: block; 
+            text-transform: uppercase; 
+        }
+
+        .loading-spinner { text-align: center; margin-top: 50%; color: var(--accent-red); font-family: 'Michroma', sans-serif; font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+    <div class="layout-container">
+        <div class="ai-panel">
+            <div class="header-actions">
+                <a href="index.html" class="back-home">⬅ Home</a>
+                <div class="chat-header">Invasive Intel</div>
+            </div>
+            <div id="response-area">
+                <p style="text-align: center; margin-top: 40%; opacity: 0.6;">Search a region to deploy invasive threat analysis.</p>
+            </div>
+            <div class="input-group">
+                <input type="text" id="user-input" placeholder="REGION (e.g. FLORIDA)">
+                <button id="search-btn">Run Analysis</button>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // STEP 4: Point to your local server instead of Azure directly
+    const API_URL = "/api/chat";
+
+    const map = L.map('map', { minZoom: 2, zoomControl: false }).setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markerLayer = L.layerGroup().addTo(map);
+
+    async function runInvasiveAnalysis() {
+        const query = document.getElementById('user-input').value.trim();
+        if (!query) return;
+
+        const responseArea = document.getElementById('response-area');
+        const searchBtn = document.getElementById('search-btn');
+
+        searchBtn.disabled = true;
+        searchBtn.innerText = "MAPPING...";
+        responseArea.innerHTML = `<div class="loading-spinner">SCANNING ${query.toUpperCase()}...</div>`;
+        markerLayer.clearLayers();
+
+        const systemPrompt = `Return JSON only. Identify 10 invasive species in ${query}. Provide "link" as a Google Search for management of that species. Format: {"brief_area_desc": "", "species_summary": "", "map_center": [lat, lon], "hotspots": [{"name": "", "lat": 0, "lon": 0, "threat": "", "solution": "", "link": ""}]}`;
+
+        try {
+            // STEP 4: Calling your local server (Keyless)
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: systemPrompt }, 
+                        { role: "user", content: query }
+                    ]
+                    // Note: model and response_format are handled by server.js
+                })
+            });
+
+            const result = await response.json();
+            
+            // Safety check for server response
+            if (!result.choices) throw new Error("Sync Error");
+
+            const content = JSON.parse(result.choices[0].message.content);
+            
+            responseArea.innerHTML = `
+                <span class="section-title">TARGET: ${query}</span>
+                <p style="font-size: 0.9rem; color: #ddd;">${content.brief_area_desc}</p>
+                <span class="section-title">THREAT SUMMARY</span>
+                <p style="font-size: 0.9rem; color: #ddd;">${content.species_summary}</p>
+                <span class="section-title">ACTIVE MARKERS</span>
+            `;
+
+            content.hotspots.forEach(loc => {
+                const marker = L.circleMarker([loc.lat, loc.lon], {
+                    color: '#ff4d4d', fillColor: '#ff4d4d', fillOpacity: 0.7, radius: 10, weight: 2
+                }).addTo(markerLayer);
+
+                marker.bindPopup(`
+                    <div style="font-family: 'Michroma', sans-serif; font-size: 10px; width: 220px; background: #121815; color: white;">
+                        <b style="color:#ff4d4d; font-size: 12px;">${loc.name}</b><br><br>
+                        <b>THREAT:</b> ${loc.threat}<br><br>
+                        <a href="${loc.link}" target="_blank" style="color: #ff4d4d; text-decoration: none; border: 1px solid #ff4d4d; padding: 5px; display: block; text-align: center;">DATABASE LINK</a>
+                    </div>
+                `);
+            });
+
+            map.flyTo(content.map_center, 6, { duration: 2 });
+        } catch (error) {
+            console.error(error);
+            responseArea.innerHTML = `<p style="color:#ff4d4d;">Sync Error. Check server status.</p>`;
+        } finally {
+            searchBtn.disabled = false;
+            searchBtn.innerText = "Run Analysis";
+        }
+    }
+
+    document.getElementById('search-btn').addEventListener('click', runInvasiveAnalysis);
+</script>
+</body>
+</html>

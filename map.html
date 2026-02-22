@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invasive Species Explorer | AI Intelligence</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Michroma&display=swap');
+
+        :root {
+            --bg-dark: #0a0f0d;
+            --panel-dark: #121815;
+            --accent-green: #00ff88;
+            --accent-red: #ff4d4d;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Michroma', sans-serif;
+            overflow: hidden; 
+            background: var(--bg-dark);
+            color: #ffffff;
+        }
+
+        .layout-container { display: flex; height: 100vh; width: 100vw; }
+
+        .ai-panel {
+            flex: 1; min-width: 380px; max-width: 450px;
+            background: var(--panel-dark);
+            display: flex; flex-direction: column;
+            /* Green accent line on the right */
+            border-right: 4px solid var(--accent-green);
+            padding: 20px;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-home {
+            text-decoration: none; color: var(--accent-green);
+            font-weight: bold; font-size: 0.8rem;
+            border: 2px solid var(--accent-green); padding: 8px 15px;
+            border-radius: 20px; transition: 0.3s;
+        }
+
+        .back-home:hover { background: var(--accent-green); color: #000; }
+
+        .chat-header {
+            background: rgba(0, 255, 136, 0.1); 
+            color: white;
+            padding: 12px; border-radius: 10px;
+            text-align: center; flex-grow: 1;
+            margin-left: 10px; font-size: 0.9rem;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        #response-area {
+            flex-grow: 1; background: var(--glass);
+            border-radius: 12px; padding: 20px;
+            overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
+            line-height: 1.6; color: #e0e0e0;
+        }
+
+        /* Centered Button Container */
+        .reload-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .reload-btn {
+            background: transparent;
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Michroma', sans-serif;
+            font-size: 0.75rem;
+            transition: all 0.4s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .reload-btn:hover:not(:disabled) {
+            background: var(--accent-green);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            transform: translateY(-2px);
+        }
+
+        #map { flex: 2; height: 100%; background: #0b0e11; }
+        
+        .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(170deg) saturate(0.3) brightness(0.7);
+        }
+
+        .text-label { display: block; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px; color: var(--accent-green); }
+        
+        .loading-spinner {
+            border: 3px solid rgba(0, 255, 136, 0.1);
+            border-top: 3px solid var(--accent-green);
+            border-radius: 50%;
+            width: 30px; height: 30px;
+            animation: spin 0.8s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="layout-container">
+        <div class="ai-panel">
+            <div class="header-actions">
+                <a href="index.html" class="back-home">⬅ Home</a>
+                <div class="chat-header">Conservation Atlas</div>
+            </div>
+            
+            <div id="response-area">
+                <div class="loading-spinner"></div>
+                <p style="text-align: center; color: var(--accent-green);">Syncing with global databases...</p>
+            </div>
+
+            <div class="reload-container">
+                <button id="reload-btn" class="reload-btn" onclick="refreshConservationData()">
+                    🔄 Sync New Priority Data
+                </button>
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // STEP 4: Point to your local server instead of Azure directly
+    const API_URL = "/api/chat";
+
+    const map = L.map('map', { minZoom: 2, zoomControl: false }).setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    const markerLayer = L.layerGroup().addTo(map);
+
+    window.addEventListener('DOMContentLoaded', () => refreshConservationData());
+
+    async function refreshConservationData() {
+        const responseArea = document.getElementById('response-area');
+        const reloadBtn = document.getElementById('reload-btn');
+        
+        reloadBtn.disabled = true;
+        reloadBtn.innerText = "Consulting AI...";
+
+        const randomSeed = Math.floor(Math.random() * 1000);
+        
+        const systemPrompt = `You are a conservation biologist. Respond ONLY with JSON. 
+        Identify 20 DIFFERENT global hotspots (10 Animal, 10 Habitat).
+        For the "link" field, generate a specific Google Search URL for that species or place (e.g., "https://www.google.com/search?q=Vaquita+Conservation").
+        Format: {"hotspots": [{"name": "", "lat": 0, "lon": 0, "desc": "", "sol": "", "link": "", "type": "Animal/Habitat"}]}`;
+
+        try {
+            // STEP 4: Calling your local server (Keyless)
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: `Generate 20 unique priority markers. Seed: ${randomSeed}` }
+                    ]
+                    // Note: model and response_format are now handled by server.js
+                })
+            });
+
+            const result = await response.json();
+            
+            // Safety check for server response
+            if (!result.choices) throw new Error("Sync Error");
+            
+            const data = JSON.parse(result.choices[0].message.content).hotspots;
+            plotMarkers(data);
+            
+            responseArea.innerHTML = `
+                <h3 style="color:var(--accent-green); font-size:1rem; margin-top:0;">Global Priority List</h3>
+                <p style="font-size:0.85rem; color: #ddd;">Successfully mapped 20 critical points. Red markers (Animals) and Green markers (Habitats) are active.</p>
+            `;
+        } catch (error) {
+            console.error(error);
+            responseArea.innerHTML = `<p style="color:var(--accent-red);">Error syncing data. Check server status.</p>`;
+        } finally {
+            reloadBtn.disabled = false;
+            reloadBtn.innerText = "🔄 Sync New Priority Data";
+        }
+    }
+
+    function plotMarkers(locations) {
+        markerLayer.clearLayers();
+        locations.forEach(loc => {
+            const markerColor = loc.type === 'Animal' ? '#ff4d4d' : '#00ff88';
+            
+            const marker = L.circleMarker([loc.lat, loc.lon], {
+                color: markerColor, 
+                fillColor: markerColor, 
+                fillOpacity: 0.7, 
+                radius: 9, 
+                weight: 2
+            }).addTo(markerLayer);
+
+            marker.on('click', () => {
+                showDetail(loc);
+                map.flyTo([loc.lat, loc.lon], 6, { duration: 1.5 });
+            });
+        });
+    }
+
+    function showDetail(data) {
+        const responseArea = document.getElementById('response-area');
+        const colorVar = data.type === 'Animal' ? '#ff4d4d' : '#00ff88';
+
+        responseArea.innerHTML = `
+            <h2 style="color: ${colorVar}; margin-top: 0; font-size: 1.1rem; text-transform: uppercase;">${data.name}</h2>
+            <div style="margin-bottom: 15px;">
+                <span class="text-label" style="color: #ff4d4d;">Threat</span>
+                <p style="font-size: 0.9rem; color: #eee;">${data.desc}</p>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <span class="text-label" style="color: #00ff88;">Strategy</span>
+                <p style="font-size: 0.9rem; color: #eee;">${data.sol}</p>
+            </div>
+            <a href="${data.link}" target="_blank" 
+               style="border: 1px solid ${colorVar}; color: ${colorVar}; padding: 12px; border-radius: 8px; text-decoration: none; display: block; text-align: center; font-size: 0.7rem; font-weight: bold; transition: 0.3s;">
+               ACCESS LIVE DATA
+            </a>
+        `;
+    }
+</script>
+</body>
+</html>

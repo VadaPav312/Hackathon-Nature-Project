@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supply Chain | Truth-Seeker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Michroma&display=swap');
+        
+        :root {
+            --bg: #0a0f0d;
+            --panel: #121815;
+            --orange: #e67e22;
+            --text-main: #e0e0e0;
+            --text-dim: #b0b0b0;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050708; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; border: 2px solid #050708; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--orange); }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Michroma', sans-serif;
+            background: var(--bg); color: white;
+            overflow-x: hidden; scroll-behavior: smooth;
+        }
+
+        .header {
+            padding: 25px 40px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(10, 15, 13, 0.95); position: sticky; top: 0; z-index: 1000;
+            border-bottom: 1px solid rgba(230, 126, 34, 0.1);
+        }
+
+        .home-btn {
+            text-decoration: none; color: var(--orange); border: 1.5px solid var(--orange);
+            padding: 12px 40px; border-radius: 50px; 
+            font-size: 0.7rem; letter-spacing: 2px; transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        .home-btn:hover { background: var(--orange); color: white; box-shadow: 0 0 20px rgba(230, 126, 34, 0.4); }
+
+        .container { max-width: 900px; margin: 40px auto; padding: 0 20px; text-align: center; }
+
+        .instructions-panel {
+            background: rgba(230, 126, 34, 0.03); border: 1px dashed rgba(230, 126, 34, 0.2);
+            padding: 25px; margin-bottom: 20px; border-radius: 4px; width: 100%; box-sizing: border-box;
+        }
+
+        .instructions-panel h2 { font-size: 0.6rem; color: var(--orange); margin: 0 0 12px 0; letter-spacing: 3px; }
+        .instructions-panel p { font-size: 0.65rem; color: var(--text-dim); line-height: 1.8; margin: 0 0 20px 0; }
+
+        .tier-legend {
+            display: flex; justify-content: space-around; border-top: 1px solid rgba(230, 126, 34, 0.1);
+            padding-top: 15px; flex-wrap: wrap; gap: 10px;
+        }
+        .tier-item { font-size: 0.55rem; color: var(--text-dim); letter-spacing: 1px; }
+        .tier-item span { color: var(--orange); font-weight: bold; }
+
+        h1 { font-size: 2.2rem; letter-spacing: 10px; color: var(--orange); margin-bottom: 10px; }
+        .subtitle { font-size: 0.6rem; color: #666; letter-spacing: 3px; margin-bottom: 60px; text-transform: uppercase; }
+
+        .search-box { width: 100%; display: flex; justify-content: center; margin-bottom: 60px; }
+        input[type="text"] {
+            width: 100%; max-width: 600px; padding: 24px; background: rgba(0,0,0,0.6); 
+            border: 1px solid #222; border-bottom: 2px solid #333; color: white; 
+            font-family: 'Michroma'; font-size: 0.9rem; outline: none; transition: 0.4s; text-align: center;
+        }
+        input:focus { border-bottom-color: var(--orange); background: rgba(230, 126, 34, 0.02); }
+
+        #results-container { display: none; text-align: left; margin-bottom: 100px; }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 25px; margin-top: 40px; }
+        
+        .card { background: var(--panel); padding: 30px; border: 1px solid #1a1a1a; opacity: 0; transform: translateY(20px); transition: 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+        .card.active { opacity: 1; transform: translateY(0); }
+        .card h3 { font-size: 0.6rem; color: var(--orange); margin: 0 0 15px 0; letter-spacing: 2px; border-bottom: 1px solid rgba(230, 126, 34, 0.1); padding-bottom: 5px; }
+        .card p { font-size: 0.75rem; line-height: 1.8; color: var(--text-main); margin: 0; }
+        
+        .grade-circle { 
+            width: 110px; height: 110px; border: 2px solid var(--orange); border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 2.8rem; color: var(--orange); margin: 0 auto 20px; 
+            transition: font-size 0.3s ease;
+        }
+
+        .reset-btn {
+            display: block; margin: 40px auto; background: transparent; border: 1px solid #333;
+            color: #666; padding: 10px 30px; border-radius: 4px; cursor: pointer;
+            font-family: 'Michroma'; font-size: 0.5rem; letter-spacing: 2px; transition: 0.3s;
+        }
+        .reset-btn:hover { border-color: var(--orange); color: var(--orange); }
+
+        .scan-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 2000; flex-direction: column; justify-content: center; align-items: center; }
+        .scan-bar { width: 100%; height: 3px; background: var(--orange); position: absolute; box-shadow: 0 0 40px var(--orange); animation: scanLoop 2.2s ease-in-out infinite; }
+        @keyframes scanLoop { 0%, 100% { top: 0%; } 50% { top: 100%; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="index.html" class="home-btn">HOME</a>
+        <div style="font-size: 0.5rem; color: #444; letter-spacing: 2px;">NEURAL_SCAN_V6.2</div>
+    </div>
+    <div class="container">
+        <div class="instructions-panel">
+            <h2>SYSTEM PROTOCOL</h2>
+            <p>Enter telemetry for a specific physical product or natural element.</p>
+            <div class="tier-legend">
+                <div class="tier-item"><span>A+</span> Natural</div>
+                <div class="tier-item"><span>B</span> Sustainable</div>
+                <div class="tier-item"><span>C</span> Standard</div>
+                <div class="tier-item"><span>F</span> High-Pollutant</div>
+            </div>
+        </div>
+
+        <h1>TRUTH-SEEKER</h1>
+        <div class="subtitle">Dissecting Global Supply Chains</div>
+
+        <div class="search-box">
+            <input type="text" id="product-input" placeholder="SCAN ITEM..." onkeypress="handleSearch(event)" autocomplete="off">
+        </div>
+
+        <div id="results-container">
+            <div class="grade-circle" id="eco-score">--</div>
+            <div class="result-grid">
+                <div class="card" id="c1"><h3>WATER_FOOTPRINT</h3><p id="water-data"></p></div>
+                <div class="card" id="c2"><h3>CARBON_INTENSITY</h3><p id="carbon-data"></p></div>
+                <div class="card" id="c3"><h3>ETHICAL_AUDIT</h3><p id="labor-data"></p></div>
+                <div class="card" id="c4"><h3>RAW_MATERIALS</h3><p id="resource-data"></p></div>
+                <div class="card" style="grid-column: 1 / -1; border-color: var(--orange);"><h3>SYSTEM_RECOMMENDATION</h3><p id="ai-summary" style="color: #fff;"></p></div>
+            </div>
+            <button class="reset-btn" onclick="resetUI()">NEW SCAN</button>
+        </div>
+    </div>
+
+    <div id="scan-overlay" class="scan-overlay"><div class="scan-bar"></div><div style="color:var(--orange); letter-spacing:10px; margin-top:30px; font-size:0.8rem;">SCANNING...</div></div>
+
+    <script>
+    // STEP 4: Point to your local server instead of Azure directly
+    const API = "/api/chat";
+
+    function handleSearch(e) { 
+        if (e.key === "Enter") { 
+            const val = document.getElementById('product-input').value; 
+            if(val) runScan(val); 
+        } 
+    }
+
+    function resetUI() {
+        document.getElementById('results-container').style.display = 'none';
+        document.getElementById('product-input').value = '';
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    }
+
+    async function runScan(product) {
+        document.getElementById('scan-overlay').style.display = 'flex';
+        document.getElementById('results-container').style.display = 'none';
+        
+        const systemLogic = `You are an environmental auditor.
+        RULES:
+        1. If input is nonsense or not a physical item, grade is "N/A" and data is "N/A".
+        2. If input is natural, grade is "A+" with zero impact.
+        3. Return JSON: {"grade":"Letter or N/A","water":"text","carbon":"text","labor":"text","resource":"text","summary":"text"}`;
+
+        try {
+            // STEP 4: Call your local server endpoint (Keyless)
+            const res = await fetch(API, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    messages: [
+                        {role: "system", content: systemLogic}, 
+                        {role: "user", content: `Audit: "${product}"`}
+                    ]
+                    // Note: 'model' and 'response_format' are now handled by server.js
+                })
+            });
+
+            const raw = await res.json();
+            
+            // Safety check for server response
+            if (!raw.choices) throw new Error("Sync Error");
+            
+            const data = JSON.parse(raw.choices[0].message.content);
+
+            const scoreEl = document.getElementById('eco-score');
+            scoreEl.innerText = data.grade;
+            
+            // Shrink font size if text is "N/A" or "A+"
+            scoreEl.style.fontSize = data.grade.length > 1 ? "1.8rem" : "2.8rem";
+
+            document.getElementById('water-data').innerText = data.water;
+            document.getElementById('carbon-data').innerText = data.carbon;
+            document.getElementById('labor-data').innerText = data.labor;
+            document.getElementById('resource-data').innerText = data.resource;
+            document.getElementById('ai-summary').innerText = data.summary;
+
+            setTimeout(() => {
+                document.getElementById('scan-overlay').style.display = 'none';
+                document.getElementById('results-container').style.display = 'block';
+                document.querySelectorAll('.card').forEach((card, index) => { 
+                    setTimeout(() => card.classList.add('active'), index * 100); 
+                });
+            }, 1800);
+        } catch (err) { 
+            console.error(err);
+            document.getElementById('scan-overlay').style.display = 'none'; 
+            alert("Audit failed. Ensure your server is running."); 
+        }
+    }
+</script>
+</body>
+</html>

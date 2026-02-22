@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Hub | Purple Protocol</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Michroma&display=swap');
+
+        :root {
+            --bg-dark: #0a0f0d;
+            --panel-dark: #121815;
+            --accent-purple: #9b59b6; /* Main Theme Color */
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: 'Michroma', sans-serif;
+            overflow: hidden; 
+            background: var(--bg-dark);
+            color: #ffffff;
+        }
+
+        .layout-container { display: flex; height: 100vh; width: 100vw; }
+
+        .ai-panel {
+            flex: 1; min-width: 400px; max-width: 450px;
+            background: var(--panel-dark);
+            display: flex; flex-direction: column;
+            /* PURPLE SIDE TAPE */
+            border-right: 4px solid var(--accent-purple);
+            padding: 25px;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-home {
+            text-decoration: none; color: var(--accent-purple);
+            font-weight: bold; font-size: 0.7rem;
+            border: 2px solid var(--accent-purple); padding: 8px 15px;
+            border-radius: 20px; transition: 0.3s;
+        }
+
+        .back-home:hover { background: var(--accent-purple); color: #fff; }
+
+        .chat-header {
+            background: rgba(155, 89, 182, 0.1); 
+            color: white;
+            padding: 10px 20px; border-radius: 10px;
+            text-align: center; flex-grow: 1;
+            margin-left: 10px; font-size: 0.85rem;
+            border: 1px solid rgba(155, 89, 182, 0.2);
+        }
+
+        #response-area {
+            flex-grow: 1; background: var(--glass);
+            border-radius: 12px; padding: 20px;
+            overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
+            line-height: 1.6; color: #e0e0e0;
+            font-family: sans-serif;
+        }
+
+        .input-group { 
+            margin-top: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            align-items: center; 
+        }
+        
+        input[type="text"] {
+            width: 90%;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 25px; 
+            border: 1px solid var(--accent-purple); 
+            outline: none;
+            color: white;
+            font-family: 'Michroma', sans-serif;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        button {
+            padding: 12px 30px; 
+            background: transparent; 
+            color: var(--accent-purple);
+            border: 1px solid var(--accent-purple); 
+            border-radius: 25px; 
+            cursor: pointer;
+            transition: 0.4s; 
+            font-weight: bold; 
+            font-family: 'Michroma', sans-serif;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        button:hover { 
+            background: var(--accent-purple); 
+            color: #fff; 
+            box-shadow: 0 0 20px rgba(155, 89, 182, 0.3);
+        }
+
+        #map { flex: 2; height: 100%; background: #0b0e11; }
+        
+        .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(250deg) saturate(0.5) brightness(0.7);
+        }
+
+        .section-title { 
+            font-family: 'Michroma', sans-serif; 
+            font-size: 0.7rem; 
+            color: var(--accent-purple); 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            padding-bottom: 8px; 
+            margin: 20px 0 10px 0; 
+            display: block; 
+            text-transform: uppercase; 
+        }
+
+        .loading-spinner { text-align: center; margin-top: 50%; color: var(--accent-purple); font-family: 'Michroma', sans-serif; font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+    <div class="layout-container">
+        <div class="ai-panel">
+            <div class="header-actions">
+                <a href="index.html" class="back-home">⬅ Home</a>
+                <div class="chat-header">Action Hub</div>
+            </div>
+            <div id="response-area">
+                <p style="text-align: center; margin-top: 40%; opacity: 0.6;">Locate non-profits and volunteer targets by entering a city.</p>
+            </div>
+            <div class="input-group">
+                <input type="text" id="user-input" placeholder="LOCATION (e.g. LONDON)">
+                <button id="search-btn">Find Action</button>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // STEP 4: Point to your local server instead of Azure directly
+    const API_URL = "/api/chat"; 
+
+    const map = L.map('map', { minZoom: 2, zoomControl: false }).setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markerLayer = L.layerGroup().addTo(map);
+
+    async function runActionAnalysis() {
+        const query = document.getElementById('user-input').value.trim();
+        if (!query) return;
+
+        const responseArea = document.getElementById('response-area');
+        const searchBtn = document.getElementById('search-btn');
+
+        searchBtn.disabled = true;
+        searchBtn.innerText = "LOCATING...";
+        responseArea.innerHTML = `<div class="loading-spinner">SCANNING ${query.toUpperCase()}...</div>`;
+        markerLayer.clearLayers();
+
+        const systemPrompt = `Return JSON only. Identify 8 charities in ${query}. Provide "url" as a Google Search for that charity. Format: {"area_desc": "", "impact_summary": "", "map_center": [lat, lon], "projects": [{"name": "", "lat": 0, "lon": 0, "mission": "", "url": ""}]}`;
+
+        try {
+            // STEP 4: Remove 'Authorization' header (the server handles the key now)
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: systemPrompt }, 
+                        { role: "user", content: query }
+                    ]
+                })
+            });
+
+            const result = await response.json();
+            
+            // Safety check for server response
+            if (!result.choices) throw new Error("Invalid Response");
+
+            const content = JSON.parse(result.choices[0].message.content);
+            
+            responseArea.innerHTML = `
+                <span class="section-title">REGION: ${query}</span>
+                <p style="font-size: 0.95rem;">${content.area_desc}</p>
+                <span class="section-title">VOLUNTEER IMPACT</span>
+                <p style="font-size: 0.95rem;">${content.impact_summary}</p>
+                <span class="section-title">ORGANIZATIONS</span>
+            `;
+
+            content.projects.forEach(org => {
+                const marker = L.circleMarker([org.lat, org.lon], {
+                    color: '#9b59b6', fillColor: '#9b59b6', fillOpacity: 0.7, radius: 10, weight: 2
+                }).addTo(markerLayer);
+
+                marker.bindPopup(`
+                    <div style="font-family: 'Michroma', sans-serif; font-size: 10px; width: 220px; background: #121815; color: white;">
+                        <b style="color:#9b59b6; font-size: 12px;">${org.name}</b><br><br>
+                        ${org.mission}<br><br>
+                        <a href="${org.url}" target="_blank" style="background:#9b59b6; color:#fff; padding:8px 10px; border-radius:4px; text-decoration:none; display:block; text-align:center;">SUPPORT LINK</a>
+                    </div>
+                `);
+            });
+
+            map.flyTo(content.map_center, 9, { duration: 1.5 });
+        } catch (error) {
+            console.error(error);
+            responseArea.innerHTML = `<p style="color:#9b59b6;">Sync Error. Check if server is running.</p>`;
+        } finally {
+            searchBtn.disabled = false;
+            searchBtn.innerText = "Find Action";
+        }
+    }
+
+    document.getElementById('search-btn').addEventListener('click', runActionAnalysis);
+</script>
+</body>
+</html>
