@@ -8,7 +8,7 @@ const markerLayer = L.layerGroup().addTo(map);
 
 // --- ANALYSIS LOGIC ---
 async function runInvasiveAnalysis() {
-    console.log("DEBUG: Function 'runInvasiveAnalysis' has started.");
+    
     const queryInput = document.getElementById('user-input');
     const query = queryInput.value.trim();
     if (!query) return;
@@ -25,40 +25,22 @@ async function runInvasiveAnalysis() {
     const systemPrompt = `Return JSON only. Identify 10 invasive species in ${query}. Provide "link" as a Google Search for management of that species. Format: {"brief_area_desc": "", "species_summary": "", "map_center": [lat, lon], "hotspots": [{"name": "", "lat": 0, "lon": 0, "threat": "", "solution": "", "link": ""}]}`;
 
     try {
-        try {
-    const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            messages: [
-                { role: "system", content: "Return ONLY raw JSON. No markdown. No backticks. Format: {\"area_desc\":\"\", \"hotspots\":[]}" }, 
-                { role: "user", content: query }
-            ]
-        })
-    });
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                messages: [
+                    { role: "system", content: systemPrompt }, 
+                    { role: "user", content: query }
+                ]
+            })
+        });
 
-    const result = await response.json();
-    console.log("Full Server Response:", result); // Look at this in the console!
+        const result = await response.json();
+        
+        if (!result.choices) throw new Error("Sync Error");
 
-    // 1. Check if the structure exists
-    if (!result.choices || !result.choices[0].message) {
-        throw new Error("Server returned an unexpected format. Check Console.");
-    }
-
-    let rawData = result.choices[0].message.content;
-
-    // 2. Clean the data (Removes ```json and ``` if they exist)
-    const cleanData = rawData.replace(/```json|```/g, "").trim();
-    
-    // 3. Parse the cleaned data
-    const content = JSON.parse(cleanData);
-
-    // ... Rest of your map code (map.flyTo, etc) ...
-
-} catch (error) {
-    console.error("Invasive Map Error:", error);
-    responseArea.innerHTML = `<p style="color:#ff4d4d;">Sync Error: ${error.message}</p>`;
-}
+        const content = JSON.parse(result.choices[0].message.content);
         
         // Populate Sidebar
         responseArea.innerHTML = `
