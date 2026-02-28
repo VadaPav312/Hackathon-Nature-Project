@@ -1,39 +1,43 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
+const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
-
-const AZURE_ENDPOINT = "https://models.inference.ai.azure.com/chat/completions";
 
 app.post('/api/chat', async (req, res) => {
     try {
-        const response = await fetch(AZURE_ENDPOINT, {
+        const { messages } = req.body;
+
+        // Using your existing variable names but calling Groq
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { 
-                "Content-Type": "application/json", 
-                "Authorization": `Bearer ${process.env.AZURE_AI_TOKEN}` 
+            headers: {
+                "Authorization": `Bearer ${process.env.AZURE_API_KEY}`,
+                "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                messages: req.body.messages,
-                model: "gpt-4o"
+                model: "llama-3.3-70b-versatile",
+                messages: messages,
+                temperature: 0.1 // Keeps JSON output stable
             })
         });
 
         const data = await response.json();
+        
+        if (!response.ok) {
+            console.error("Groq API Error:", data);
+            return res.status(response.status).json({ error: "API failed" });
+        }
+
         res.json(data);
     } catch (error) {
-        res.status(500).json({ error: "Server Error" });
+        console.error("Server Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server live on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
